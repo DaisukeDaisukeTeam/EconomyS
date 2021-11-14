@@ -43,7 +43,7 @@ class TopMoneyCommand extends Command{
 		if(!$this->plugin->isEnabled()) return false;
 		if(!$this->testPermission($sender)) return false;
 
-		$page = (int)array_shift($params);
+		$page = (int) ($params[0] ?? 0);
 
 		$server = $this->plugin->getServer();
 

@@ -20,11 +20,12 @@
 
 namespace onebone\economyapi;
 
-use pocketmine\Player;
+use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\utils\Config;
+use pocketmine\utils\Internet;
 use pocketmine\utils\Utils;
 use pocketmine\utils\TextFormat;
 
@@ -37,6 +38,15 @@ use onebone\economyapi\event\money\AddMoneyEvent;
 use onebone\economyapi\event\money\MoneyChangedEvent;
 use onebone\economyapi\event\account\CreateAccountEvent;
 use onebone\economyapi\task\SaveTask;
+use onebone\economyapi\command\MyMoneyCommand;
+use onebone\economyapi\command\TopMoneyCommand;
+use onebone\economyapi\command\SetMoneyCommand;
+use onebone\economyapi\command\SeeMoneyCommand;
+use onebone\economyapi\command\GiveMoneyCommand;
+use onebone\economyapi\command\TakeMoneyCommand;
+use onebone\economyapi\command\PayCommand;
+use onebone\economyapi\command\SetLangCommand;
+use onebone\economyapi\command\MyStatusCommand;
 
 class EconomyAPI extends PluginBase implements Listener{
 	const API_VERSION = 3;
@@ -130,7 +140,7 @@ class EconomyAPI extends PluginBase implements Listener{
 
 	/**
 	 * @param string|Player		$player
-	 * @param float				$defaultMoney
+	 * @param float|false		$defaultMoney
 	 * @param bool				$force
 	 *
 	 * @return bool
@@ -144,7 +154,7 @@ class EconomyAPI extends PluginBase implements Listener{
 		if(!$this->provider->accountExists($player)){
 			$defaultMoney = ($defaultMoney === false) ? $this->getConfig()->get("default-money") : $defaultMoney;
 
-			$this->getServer()->getPluginManager()->callEvent($ev = new CreateAccountEvent($this, $player, $defaultMoney, "none"));
+			($ev = new CreateAccountEvent($this, $player, $defaultMoney, "none"))->call();
 			if(!$ev->isCancelled() or $force === true){
 				$this->provider->createAccount($player, $ev->getDefaultMoney());
 			}
@@ -196,10 +206,10 @@ class EconomyAPI extends PluginBase implements Listener{
 			$oldMoney = $this->provider->getMoney($player);
 			if(!is_numeric($oldMoney)) $oldMoney = null;
 
-			$this->getServer()->getPluginManager()->callEvent($ev = new SetMoneyEvent($this, $player, $amount, $issuer));
+			($ev = new SetMoneyEvent($this, $player, $amount, $issuer))->call();
 			if(!$ev->isCancelled() or $force === true){
 				$this->provider->setMoney($player, $amount);
-				$this->getServer()->getPluginManager()->callEvent(new MoneyChangedEvent($this, $player, $amount, $issuer, $oldMoney));
+				(new MoneyChangedEvent($this, $player, $amount, $issuer, $oldMoney))->call();
 				return self::RET_SUCCESS;
 			}
 			return self::RET_CANCELLED;
@@ -229,10 +239,10 @@ class EconomyAPI extends PluginBase implements Listener{
 				return self::RET_INVALID;
 			}
 
-			$this->getServer()->getPluginManager()->callEvent($ev = new AddMoneyEvent($this, $player, $amount, $issuer));
+			($ev = new AddMoneyEvent($this, $player, $amount, $issuer))->call();
 			if(!$ev->isCancelled() or $force === true){
 				$this->provider->addMoney($player, $amount);
-				$this->getServer()->getPluginManager()->callEvent(new MoneyChangedEvent($this, $player, $amount + $money, $issuer, $money));
+				(new MoneyChangedEvent($this, $player, $amount + $money, $issuer, $money))->call();
 				return self::RET_SUCCESS;
 			}
 			return self::RET_CANCELLED;
@@ -242,13 +252,13 @@ class EconomyAPI extends PluginBase implements Listener{
 
 	/**
 	 * @param string|Player 	$player
-	 * @param float 			$amount
+	 * @param float $amount
 	 * @param bool				$force
-	 * @param string			$issuer
+	 * @param string $issuer
 	 *
 	 * @return int
 	 */
-	public function reduceMoney($player, $amount, bool $force = false, $issuer = "none") : int{
+	public function reduceMoney($player, float $amount, bool $force = false, string $issuer = "none") : int{
 		if($amount < 0){
 			return self::RET_INVALID;
 		}
@@ -262,10 +272,10 @@ class EconomyAPI extends PluginBase implements Listener{
 				return self::RET_INVALID;
 			}
 
-			$this->getServer()->getPluginManager()->callEvent($ev = new ReduceMoneyEvent($this, $player, $amount, $issuer));
+			($ev = new ReduceMoneyEvent($this, $player, $amount, $issuer))->call();
 			if(!$ev->isCancelled() or $force === true){
 				$this->provider->reduceMoney($player, $amount);
-				$this->getServer()->getPluginManager()->callEvent(new MoneyChangedEvent($this, $player, $money - $amount, $issuer, $money));
+				(new MoneyChangedEvent($this, $player, $money - $amount, $issuer, $money))->call();
 				return self::RET_SUCCESS;
 			}
 			return self::RET_CANCELLED;
@@ -280,11 +290,11 @@ class EconomyAPI extends PluginBase implements Listener{
 		return self::$instance;
 	}
 
-	public function onLoad(){
+	public function onLoad(): void{
 		self::$instance = $this;
 	}
 
-	public function onEnable(){
+	public function onEnable(): void{
 		/*
 		 * 디폴트 설정 파일을 먼저 생성하게 되면 데이터 폴더 파일이 자동 생성되므로
 		 * 'Failed to open stream: No such file or directory' 경고 메시지를 없앨 수 있습니다
@@ -328,7 +338,7 @@ class EconomyAPI extends PluginBase implements Listener{
 		}
 	}
 
-	public function onDisable(){
+	public function onDisable(): void{
 		$this->saveAll();
 
 		if($this->provider instanceof Provider){
@@ -343,13 +353,13 @@ class EconomyAPI extends PluginBase implements Listener{
 		file_put_contents($this->getDataFolder()."PlayerLang.dat", serialize($this->playerLang));
 	}
 
-	private function replaceParameters($message, $params = []){
+	private function replaceParameters(string $message, array $params = []){
 		$search = ["%MONETARY_UNIT%"];
 		$replace = [$this->getMonetaryUnit()];
 
-		for($i = 0; $i < count($params); $i++){
+		foreach($params as $i => $value){
 			$search[] = "%".($i + 1);
-			$replace[] = $params[$i];
+			$replace[] = $value;
 		}
 
 		$colors = [
@@ -363,7 +373,7 @@ class EconomyAPI extends PluginBase implements Listener{
 		return str_replace($search, $replace, $message);
 	}
 
-	private function initialize(){
+	private function initialize(): bool{
 		if($this->getConfig()->get("check-update")){
 			$this->checkUpdate();
 		}
@@ -383,16 +393,22 @@ class EconomyAPI extends PluginBase implements Listener{
 		$this->initializeLanguage();
 		$this->getLogger()->notice("Database provider was set to: ".$this->provider->getName());
 		$this->registerCommands();
+		return true;
 	}
 
 	public function openProvider(){
-		if($this->provider !== null)
+		if($this->provider !== null){
 			$this->provider->open();
+		}
 	}
 
 	private function checkUpdate(){
 		try{
-			$info = json_decode(Utils::getURL($this->getConfig()->get("update-host")."?version=".$this->getDescription()->getVersion()."&package_version=".self::PACKAGE_VERSION), true);
+			$url = Internet::getURL($this->getConfig()->get("update-host")."?version=".$this->getDescription()->getVersion()."&package_version=".self::PACKAGE_VERSION);
+			if($url === null){
+				return false;
+			}
+			$info = json_decode($url->getBody(), true);
 			if(!isset($info["status"]) or $info["status"] !== true){
 				$this->getLogger()->notice("Something went wrong on update server.");
 				return false;
@@ -412,15 +428,15 @@ class EconomyAPI extends PluginBase implements Listener{
 		$map = $this->getServer()->getCommandMap();
 
 		$commands = [
-			"mymoney" => "\\onebone\\economyapi\\command\\MyMoneyCommand",
-			"topmoney" => "\\onebone\\economyapi\\command\\TopMoneyCommand",
-			"setmoney" => "\\onebone\\economyapi\\command\\SetMoneyCommand",
-			"seemoney" => "\\onebone\\economyapi\\command\\SeeMoneyCommand",
-			"givemoney" => "\\onebone\\economyapi\\command\\GiveMoneyCommand",
-			"takemoney" => "\\onebone\\economyapi\\command\\TakeMoneyCommand",
-			"pay" => "\\onebone\\economyapi\\command\\PayCommand",
-			"setlang" => "\\onebone\\economyapi\\command\\SetLangCommand",
-			"mystatus" => "\\onebone\\economyapi\\command\\MyStatusCommand"
+			"mymoney" => MyMoneyCommand::class,
+			"topmoney" => TopMoneyCommand::class,
+			"setmoney" => SetMoneyCommand::class,
+			"seemoney" => SeeMoneyCommand::class,
+			"givemoney" => GiveMoneyCommand::class,
+			"takemoney" => TakeMoneyCommand::class,
+			"pay" => PayCommand::class,
+			"setlang" => SetLangCommand::class,
+			"mystatus" => MyStatusCommand::class
 		];
 		foreach($commands as $cmd => $class){
 			$map->register("economyapi", new $class($this));

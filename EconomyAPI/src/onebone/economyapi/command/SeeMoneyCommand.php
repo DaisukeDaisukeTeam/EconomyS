@@ -4,8 +4,8 @@ namespace onebone\economyapi\command;
 
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\player\Player;
 use pocketmine\utils\TextFormat;
-use pocketmine\Player;
 
 use onebone\economyapi\EconomyAPI;
 
@@ -27,13 +27,18 @@ class SeeMoneyCommand extends Command{
 			return false;
 		}
 
-		$player = array_shift($params);
+		if(count($params) < 1){
+			$sender->sendMessage(TextFormat::RED . "Usage: " . $this->getUsage());
+			return true;
+		}
+
+		$player = implode(" ", $params);
 		if(trim($player) === ""){
 			$sender->sendMessage(TextFormat::RED . "Usage: " . $this->getUsage());
 			return true;
 		}
 
-		if(($p = $this->plugin->getServer()->getPlayer($player)) instanceof Player){
+		if(($p = $this->plugin->getServer()->getPlayerByPrefix($player)) instanceof Player){
 			$player = $p->getName();
 		}
 

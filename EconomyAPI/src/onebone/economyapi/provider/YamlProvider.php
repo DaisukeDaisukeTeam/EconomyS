@@ -22,7 +22,7 @@ namespace onebone\economyapi\provider;
 
 
 use onebone\economyapi\EconomyAPI;
-use pocketmine\Player;
+use pocketmine\player\Player;
 use pocketmine\utils\Config;
 
 class YamlProvider implements Provider{
@@ -80,6 +80,10 @@ class YamlProvider implements Provider{
 		return false;
 	}
 
+	/**
+	 * @phpstan-param Player|string $player
+	 * @phpstan-return float|false
+	 */
 	public function getMoney($player){
 		if($player instanceof Player){
 			$player = $player->getName();
@@ -135,7 +139,7 @@ class YamlProvider implements Provider{
 	}
 
 	public function getAll(){
-		return isset($this->money["money"]) ? $this->money["money"] : [];
+		return $this->money["money"] ?? [];
 	}
 
 	public function save(){
