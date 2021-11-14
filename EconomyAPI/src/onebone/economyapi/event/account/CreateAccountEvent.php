@@ -22,7 +22,6 @@ namespace onebone\economyapi\event\account;
 
 use onebone\economyapi\event\EconomyAPIEvent;
 use onebone\economyapi\EconomyAPI;
-use pocketmine\event\CancellableTrait;
 
 class CreateAccountEvent extends EconomyAPIEvent{
 	private $username, $defaultMoney;
